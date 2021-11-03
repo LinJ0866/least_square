@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小二乘法拟合工具箱</title>
+</head>
+<style type="text/css">
+    body {
+        max-width: 700px;
+        margin: auto;
+        padding: 20px;
+    }
+    .table {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .row {
+        display: flex;
+        flex-direction: row;
+        border-bottom: 1px solid #F3F5F9;
+    }
+    
+    .data>.row:nth-child(2n) {
+        background-color: #F6F8FA;
+    }
+    .row .small {
+        width: 100px;
+        font-weight: 100;
+        font-size: 14px;
+    }
+    .row .red {
+        color: red;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .column {
+        width: 100%;
+        height: 40px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .last .inputBox {
+        width: 50px;
+    }
+    .head {
+        font-weight: 600;
+        background-color: #fff;
+    }
+    .last {
+        color: gray;
+        background-color: antiquewhite;
+    }
+    .gray {
+        font-weight: 600;
+        background-color: #F6F8FA;
+    }
+</style>
+<body>
+    <h1>最小二乘法拟合工具箱</h1>
+
+    <h2>拟合图</h2>
+    <canvas id="myChart"></canvas>
+
+    <h2>结果输出</h2>
+    <div class="table">
+        <div class="row">
+            <div class="column gray">k</div>
+            <div id="k" class="column">0.0</div>
+        </div>
+        <div class="row">
+            <div class="column gray">b</div>
+            <div id="b" class="column">0.0</div>
+        </div>
+        <div class="row">
+            <div class="column gray"></div>
+            <div id="p" class="column">0.0%</div>
+        </div>
+    </div>
+
+    <h2>数据输入</h2>
+    <div class="table">
+        <div class="row head">
+            <div class="column small"></div>
+            <div class="column">X</div>
+            <div class="column">Y</div>
+            <div class="column small red"></div>
+        </div>
+        <div class="data"></div>
+        <div class="row last">
+            <div class="column small">*</div>
+            <div class="column">
+                <input type="number" name="x" id="x" class="inputBox">
+            </div>
+            <div class="column">
+                <input type="number" name="y" id="y" class="inputBox">
+            </div>
+            <div class="column small red">
+                <a onclick="addNewRecord()">✓</a>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="assets/jquery.js"></script>
+<script src="assets/chart.min.js"></script>
+<script>
+    function calKB(tableData) {
+        let sum_x = 0, sum_y = 0, sum_x2 = 0, sum_xy = 0
+
+        for(let item of tableData) {
+            sum_x += item.x
+            sum_y += item.y
+            sum_x2 += item.x*item.x
+            sum_xy += item.x*item.y
+        }
+
+        return [(6*sum_xy-sum_x*sum_y)/(6*sum_x2-sum_x*sum_x), (sum_y*sum_x2-sum_x*sum_xy)/(6*sum_x2-sum_x*sum_x)]
+    }
+    
+    function calLine(tableData) {
+        let params = calKB(tableData)
+        let max_p = 0
+        let max_x = tableData[0].x
+        let min_x = tableData[0].x
+
+        let resData = []
+        for(let item of tableData) {
+            y_star = params[0]*item.x+params[1]
+            let p = Math.abs(y_star-item.y)
+            if(max_p < p) {
+                max_p = p
+            }
+            if(max_x < item.x) {
+                max_x = item.x
+            } else if(min_x > item.x) {
+                min_x = item.x
+            }
+            resData.push({
+                x: item.x,
+                y: y_star
+            })
+        }
+
+        $("#k").html(params[0])
+        $("#b").html(params[1])
+        $("#p").html(max_p*100/(max_x-min_x)/(max_x-min_x) + "%")
+
+        return resData
+    }
+
+    function updateTable(tableData) {
+        $(".data").html(``)
+        for(let i in tableData) {
+            $(".data").append(`
+                <div class="row">
+                    <div class="column small">${parseInt(i)+1}</div>
+                    <div class="column">${tableData[i].x}</div>
+                    <div class="column">${tableData[i].y}</div>
+                    <div class="column small red">
+                        <a onclick="deleteRecord(${i})">✕</a>
+                    </div>
+                </div>
+            `)
+        }
+    }
+
+    function addNewRecord() {
+        x = $("#x").val()
+        y = $("#y").val()
+        if(x == "" || y == "") {
+            alert("请检查输入是否完整")
+            return
+        }
+
+        myChart.data.datasets[0].data.push({
+            x: parseFloat(x),
+            y: parseFloat(y)
+        })
+        myChart.data.datasets[1].data = calLine(tableData)
+
+        updateTable(myChart.data.datasets[0].data)
+        myChart.update();
+
+        $("#x").val("")
+        $("#y").val("")
+        $("#x").focus()
+    }
+
+    function deleteRecord(i) {
+        myChart.data.datasets[0].data.splice(i, 1)
+        myChart.data.datasets[1].data = calLine(tableData)
+
+        updateTable(myChart.data.datasets[0].data)
+        myChart.update();
+    }
+
+    // 添加记录手势
+    $("#x").bind('keyup', function(event) {
+        if(event.keyCode == "13") {
+            addNewRecord()
+        }
+    })
+    $("#y").bind('keyup', function(event) {
+        if(event.keyCode == "13") {
+            addNewRecord()
+        }
+    })
+
+
+    var tableData = [
+        {
+            x: 0,
+            y: 0
+        },
+        {
+            x: 1,
+            y: 4.75
+        },
+        {
+            x: 2,
+            y: 10
+        },
+        {
+            x: 3,
+            y: 15.25
+        },
+        {
+            x: 4,
+            y: 20
+        },
+        {
+            x: 5,
+            y: 25
+        }
+    ]
+    var tableDataAfterCal = calLine(tableData)
+    updateTable(tableData)
+
+    let ctx = document.getElementById("myChart").getContext('2d')
+    
+    var myChart = new Chart(ctx, {
+        type: "scatter",
+        data: {
+            datasets: [
+                {
+                    label: "yh",
+                    data: this.tableData,
+                    pointBackgroundColor: "#023242"
+                }, 
+                {
+                    label: "y=kx+b",
+                    data: this.tableDataAfterCal,
+                    borderColor: "#ff6384",
+                    borderWidth: 1,
+                    borderDash: [7, 3],
+                    showLine: true,
+                    pointRadius: 0
+                }
+            ],
+        }
+    })
+
+    
+    
+</script>
+</html>
